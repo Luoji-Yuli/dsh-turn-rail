@@ -1,0 +1,6 @@
+# Independent right-side turn-rail plugin for the dsh web surface.
+# Installed as a profile bundle layer, this inserts one browser row that
+# registers into `conversation.session.header.utilities`.
+- insert:
+    - id: turn-rail
+      name: '@deepseek-ai/dsh-turn-rail'
