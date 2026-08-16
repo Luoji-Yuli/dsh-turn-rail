@@ -12,6 +12,12 @@
       "path": "../../../vendor/cordis"
     },
     {
+      "path": "../../../vendor/schemastery"
+    },
+    {
+      "path": "../../settings/settings"
+    },
+    {
       "path": "../locale"
     },
     {
@@ -19,6 +25,9 @@
     },
     {
       "path": "../ui-conversation"
+    },
+    {
+      "path": "../ui-settings"
     },
     {
       "path": "../ui-slots"

@@ -1,10 +1,10 @@
 # dsh-turn-rail
 
-[中文说明](README.zh.md)
+English | [中文](README.zh.md)
 
 A right-side session turn navigation rail for DeepSeek Harness Web, replicating the official DeepSeek page style:
 
-- Collapsed: a 34px frosted pill at the right edge; one small gray marker per user turn, the active turn is blue and stretched.
+- Collapsed: a 34px rail at the right edge; one small gray marker per user turn, the active turn is blue and stretched. The frosted rounded background is opt-in and **off by default** — see the toggle section below.
 - Hover / keyboard focus: expands into a 240px floating panel with one row per user message.
 - scrollspy keeps the active marker in sync while scrolling.
 - Opening a session auto-pages older history, so every historical turn appears in the rail without manual scrolling.
@@ -38,6 +38,15 @@ dsh web
 ```
 
 Open `http://127.0.0.1:3080` and hard-refresh with **Ctrl + F5**. Open any session with at least 2 user messages; the rail appears at the right edge of the page.
+
+## Frosted background toggle
+
+The collapsed rounded frosted background is **off by default**.
+
+1. Open DeepSeek Harness Web and go to **Settings → General**.
+2. Find the row **Turn rail frosted background**.
+3. Toggle it on: the frosted rounded background shows in both light and dark themes.
+4. Toggle it off: no background in either theme (markers only).
 
 ## Uninstall
 

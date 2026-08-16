@@ -12,21 +12,27 @@
 
 import { createPortal } from 'react-dom'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { ConversationSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
-import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type { ConversationSnapshot, SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
+import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { NS } from './locales.ts'
 import css from './TurnRail.module.css'
 
 /** Injected business face from the plugin apply closure. */
 export interface TurnRailInjected {
+  hooks: {
+    /** Persisted collapsed-background preference bound as useRailBackground. */
+    railBackground: SnapshotStore<boolean>
+  }
   /** Pull one older history page for the current session. */
   loadOlder: () => void
 }
 
 /** Full props for the session-header utilities entry. */
 export type TurnRailProps =
-  PropsRuntime<'conversation.session.header.utilities'> & PropsLocale<typeof NS> & TurnRailInjected
+  PropsRuntime<'conversation.session.header.utilities'>
+  & PropsLocale<typeof NS>
+  & InjectFace<TurnRailInjected>
 
 interface TurnEntry {
   readonly key: string
@@ -137,11 +143,12 @@ function findTurnRow(scrollport: HTMLElement, key: string): HTMLElement | null {
  * @returns a portal into document.body, or null when the session has fewer
  * than two user turns.
  */
-export function TurnRail({ sessionId, useSession, loadOlder, t }: TurnRailProps) {
+export function TurnRail({ sessionId, useSession, useRailBackground, loadOlder, t }: TurnRailProps) {
   const entries = useSession(
     snapshot => buildTurnEntries(snapshot, t('preview.image')),
     sameTurnEntries,
   ) ?? EMPTY_ENTRIES
+  const backgroundEnabled = useRailBackground(value => value)
   const [currentKey, setCurrentKey] = useState<string | null>(null)
   const [overflowing, setOverflowing] = useState(false)
   const navRef = useRef<HTMLElement | null>(null)
@@ -280,7 +287,7 @@ export function TurnRail({ sessionId, useSession, loadOlder, t }: TurnRailProps)
         if (list !== null) setOverflowing(list.scrollHeight > list.clientHeight + 1)
       }}
     >
-      <span className={css.background} aria-hidden />
+      {backgroundEnabled && <span className={css.background} aria-hidden />}
       <div
         ref={wrapperRef}
         className={`${css.wrapper}${overflowing ? ` ${css.overflowing}` : ''}`}

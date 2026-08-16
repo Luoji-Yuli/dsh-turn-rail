@@ -36,10 +36,15 @@ function staticUseSession(snapshot: ConversationSnapshot): TurnRailProps['useSes
   return selector => selector(snapshot)
 }
 
-function makeProps(snapshot: ConversationSnapshot, loadOlder = vi.fn()) {
+function makeProps(
+  snapshot: ConversationSnapshot,
+  loadOlder = vi.fn(),
+  railBackground = false,
+) {
   return {
     sessionId: sid('s1'),
     useSession: staticUseSession(snapshot),
+    useRailBackground: (selector: (value: boolean) => unknown) => selector(railBackground),
     loadOlder,
     t: t as TurnRailProps['t'],
   }
@@ -100,6 +105,22 @@ describe('TurnRail', () => {
     makeScrollport(users)
     render(<TurnRail {...makeProps(snapshot, loadOlder)} />)
     expect(loadOlder).toHaveBeenCalled()
+  })
+
+  it('renders the frosted background only when the preference is enabled', () => {
+    const users = [
+      { key: 'k1', preview: 'first question' },
+      { key: 'k2', preview: 'second question' },
+    ]
+    makeScrollport(users)
+    render(<TurnRail {...makeProps(snapshotWithUsers(users), vi.fn(), false)} />)
+    expect(document.querySelector('nav [class*=background]')).toBeNull()
+
+    cleanup()
+    document.body.innerHTML = ''
+    makeScrollport(users)
+    render(<TurnRail {...makeProps(snapshotWithUsers(users), vi.fn(), true)} />)
+    expect(document.querySelector('nav [class*=background]')).not.toBeNull()
   })
 
   it('renders one row per user turn and jumps to the clicked row', () => {

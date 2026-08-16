@@ -4,7 +4,7 @@
  * chat viewport, in the style of the official DeepSeek page's session turn
  * navigation strip.
  */
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client';
+import { type ClientContext } from '@deepseek-ai/dsh-client-runtime/client';
 import { type TurnRailKey } from './locales.ts';
 declare module '@deepseek-ai/dsh-client-ui-slots' {
     interface LocaleNamespaceMap {
