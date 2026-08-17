@@ -1,10 +1,13 @@
 {
   "name": "@deepseek-ai/dsh-turn-rail",
   "description": "Right-side session turn navigation rail for DeepSeek Harness Web (official DeepSeek page style)",
-  "version": "0.1.0-rc.5",
+  "version": "0.3.0",
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/types/index.d.ts",
+  "scripts": {
+    "test": "vitest run"
+  },
   "exports": {
     ".": {
       "types": "./lib/types/index.d.ts",
@@ -22,8 +25,6 @@
         "@deepseek-ai/dsh-client-locale",
         "@deepseek-ai/dsh-client-runtime",
         "@deepseek-ai/dsh-client-ui-conversation",
-        "@deepseek-ai/dsh-client-connection",
-        "@deepseek-ai/dsh-api-remotes",
         "@deepseek-ai/dsh-client-ui-settings"
       ],
       "platform": "web"
@@ -40,6 +41,12 @@
   "dependencies": {
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/react": "^16.3.2",
+    "jsdom": "^29.1.1",
+    "vitest": "^4.1.8"
   },
   "files": [
     "lib/index.js",

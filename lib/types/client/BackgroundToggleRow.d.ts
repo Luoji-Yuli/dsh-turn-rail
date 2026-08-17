@@ -2,8 +2,8 @@
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client';
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots';
 import { NS } from './locales.ts';
-/** Registration-side preference face. */
-export interface BackgroundToggleRowInjected {
+/** Registration-side preference face (module-internal; not part of the client entry API). */
+interface BackgroundToggleRowInjected {
     hooks: {
         /** Persisted collapsed-background preference bound as useBackground. */
         background: SnapshotStore<boolean>;
@@ -19,4 +19,5 @@ export type BackgroundToggleRowProps = PropsRuntime<'settings.general.item'> & P
  * @returns the preference row.
  */
 export declare function BackgroundToggleRow({ useBackground, setBackground, t }: BackgroundToggleRowProps): import("react").JSX.Element;
+export {};
 //# sourceMappingURL=BackgroundToggleRow.d.ts.map

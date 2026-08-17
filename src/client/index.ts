@@ -26,7 +26,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 export type { TurnRailInjected, TurnRailProps } from './TurnRail.tsx'
 
 /** Required services for locale registration and utilities-slot contribution. */
-export const inject = ['sessions', 'slots', 'locale', 'connection', 'remote', 'settingsScope']
+export const inject = ['sessions', 'slots', 'locale', 'settingsScope']
 
 /**
  * Browser plugin body: register the dictionaries and the turn-rail utility.

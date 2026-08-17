@@ -23,6 +23,8 @@ export interface TurnRailInjected {
 }
 /** Full props for the session-header utilities entry. */
 export type TurnRailProps = PropsRuntime<'conversation.session.header.utilities'> & PropsLocale<typeof NS> & InjectFace<TurnRailInjected>;
+/** Scroll the rail list by the delta that brings the active item into view. */
+export declare function keepItemVisible(list: HTMLElement, activeItem: HTMLElement): void;
 /**
  * Renders the official-style right-side turn navigation rail.
  * @param props - session standard kit plus the namespace translator.

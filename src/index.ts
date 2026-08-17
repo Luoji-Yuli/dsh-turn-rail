@@ -5,13 +5,21 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import { settingsNamespace } from '@deepseek-ai/dsh-settings'
-import { TurnRailSettingsSchema } from './settings-schema.ts'
-import { TURN_RAIL_SETTINGS_NAMESPACE } from './turn-rail-settings.ts'
+import z from '@deepseek-ai/schemastery'
+import {
+  DEFAULT_TURN_RAIL_BACKGROUND, TURN_RAIL_BACKGROUND_FIELD, TURN_RAIL_SETTINGS_NAMESPACE,
+  type TurnRailSettings,
+} from './turn-rail-settings.ts'
 
 export {
   DEFAULT_TURN_RAIL_BACKGROUND, TURN_RAIL_BACKGROUND_FIELD, TURN_RAIL_SETTINGS_NAMESPACE,
   type TurnRailSettings,
 } from './turn-rail-settings.ts'
+
+/** Durable turn-rail schema; the browser scope validates against this wire schema. */
+const TurnRailSettingsSchema: z<TurnRailSettings> = z.object({
+  [TURN_RAIL_BACKGROUND_FIELD]: z.boolean().default(DEFAULT_TURN_RAIL_BACKGROUND),
+})
 
 /**
  * Register the durable turn-rail section when a settings provider exists.

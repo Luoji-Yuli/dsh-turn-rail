@@ -2,7 +2,7 @@
 
 English | [中文](README.zh.md)
 
-A right-side session turn navigation rail for DeepSeek Harness Web, replicating the DeepSeek official website chat page style:
+**v0.3** — A right-side session turn navigation rail for DeepSeek Harness Web, replicating the DeepSeek official website chat page style:
 
 - Collapsed: a 34px rail at the right edge; one small gray marker per user turn, the active turn is blue and stretched. The frosted rounded background is opt-in and **off by default** — see the toggle section below.
 - Hover / keyboard focus: expands into a 240px floating panel with one row per user message.

@@ -11,7 +11,7 @@
  */
 
 import { createPortal } from 'react-dom'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ConversationSnapshot, SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
@@ -46,21 +46,28 @@ interface UserNodeShape {
   }
 }
 
-const EMPTY_ENTRIES: readonly TurnEntry[] = []
-
-/** First non-empty text block of a user message. */
-function extractUserText(content: readonly { type?: string; text?: string }[]): string {
-  for (const block of content) {
-    if (block.type === 'text' && typeof block.text === 'string') {
-      const text = block.text.trim()
-      if (text !== '') return text
-    }
-  }
-  return ''
+/** One cached user row: content-coordinate top, so the scroll path needs no layout reads. */
+interface TurnRowMeasure {
+  readonly key: string
+  readonly top: number
 }
 
-function containsImage(content: readonly { type?: string; text?: string }[]): boolean {
-  return content.some(block => block.type === 'image')
+const EMPTY_ENTRIES: readonly TurnEntry[] = []
+const EMPTY_ROWS: readonly TurnRowMeasure[] = []
+
+/** First non-empty text block of a user message; falls back to the image label. */
+function previewOf(node: UserNodeShape, imageLabel: string): string {
+  let text = ''
+  let hasImage = false
+  for (const block of node.data?.content ?? []) {
+    if (block.type === 'text' && typeof block.text === 'string') {
+      const trimmed = block.text.trim()
+      if (text === '' && trimmed !== '') text = trimmed
+    } else if (block.type === 'image') {
+      hasImage = true
+    }
+  }
+  return text !== '' ? text : (hasImage ? imageLabel : '')
 }
 
 /** User turns in chat flow order; one row per user message with a preview. */
@@ -69,9 +76,7 @@ function buildTurnEntries(snapshot: ConversationSnapshot, imageLabel: string): T
   for (const key of snapshot.chat.order) {
     const node = snapshot.chat.nodes.get(key) as unknown as UserNodeShape | undefined
     if (node?.kind !== 'user') continue
-    const content = node.data?.content ?? []
-    let preview = extractUserText(content)
-    if (preview === '' && containsImage(content)) preview = imageLabel
+    const preview = previewOf(node, imageLabel)
     if (preview === '') continue
     entries.push({ key, preview })
   }
@@ -88,46 +93,42 @@ function sameTurnEntries(left: TurnEntry[] | undefined, right: TurnEntry[] | und
 }
 
 /**
- * Resolve the active turn key. A turn owns the flow from its user message to
- * the next user message, so the active turn is the last user row whose top
- * sits at or above the reading line (near the top of the viewport). While
- * reading a long assistant answer below its user message, that turn stays
- * active until the next user message crosses the line. If no row is above the
- * line (scrolled above the first turn), the first row owns the view.
+ * Resolve the active turn key from cached measurements. A turn owns the flow
+ * from its user message to the next user message, so the active turn is the
+ * last user row whose top sits at or above the reading line (near the top of
+ * the viewport). While reading a long assistant answer below its user message,
+ * that turn stays active until the next user message crosses the line. If no
+ * row is above the line (scrolled above the first turn), the first row owns
+ * the view. Pure arithmetic on content coordinates — no DOM query, no layout
+ * read on the scroll path.
  */
-function computeCurrentKey(scrollport: HTMLElement, keySet: Set<string>): string | null {
-  const viewport = scrollport.getBoundingClientRect()
-  const readingLine = viewport.top + Math.min(48, Math.max(24, viewport.height * 0.25))
-  let bestKey: string | null = null
-  let bestTop = Number.NEGATIVE_INFINITY
-  let firstKey: string | null = null
-  let firstTop = Number.POSITIVE_INFINITY
-  let lastKey: string | null = null
-  let lastTop = Number.NEGATIVE_INFINITY
-  for (const row of scrollport.querySelectorAll<HTMLElement>('[data-chat-flow-kind="user"]')) {
-    const key = row.dataset.chatFlowKey
-    if (key === undefined || !keySet.has(key)) continue
-    const rect = row.getBoundingClientRect()
-    if (rect.top < firstTop) {
-      firstTop = rect.top
-      firstKey = key
-    }
-    if (rect.top > lastTop) {
-      lastTop = rect.top
-      lastKey = key
-    }
-    if (rect.top <= readingLine && rect.top > bestTop) {
-      bestTop = rect.top
-      bestKey = key
-    }
+function computeCurrentKey(scrollport: HTMLElement, rows: readonly TurnRowMeasure[]): string | null {
+  if (rows.length === 0) return null
+  const lineOffset = Math.min(48, Math.max(24, scrollport.clientHeight * 0.25))
+  const line = scrollport.scrollTop + lineOffset
+  let bestIndex = -1
+  for (let index = 0; index < rows.length; index += 1) {
+    if (rows[index]!.top <= line) bestIndex = index
+    else break // DOM order = content order: rows below the line can't become active.
   }
   // At the bottom of the scrollport the latest turn owns the view even when
   // its user message has not crossed the reading line yet.
   const maxScroll = scrollport.scrollHeight - scrollport.clientHeight
-  if (maxScroll > 0 && scrollport.scrollTop >= maxScroll - 24 && lastKey !== null) {
-    return lastKey
+  if (maxScroll > 0 && scrollport.scrollTop >= maxScroll - 24) return rows[rows.length - 1]!.key
+  // Scrolled above the first turn: the first row owns the view.
+  return bestIndex >= 0 ? rows[bestIndex]!.key : rows[0]!.key
+}
+
+/** Measure user rows into content coordinates; runs only when the flow changes. */
+function measureTurnRows(scrollport: HTMLElement, keySet: Set<string>): TurnRowMeasure[] {
+  const scrollportRect = scrollport.getBoundingClientRect()
+  const rows: TurnRowMeasure[] = []
+  for (const row of scrollport.querySelectorAll<HTMLElement>('[data-chat-flow-kind="user"]')) {
+    const key = row.dataset.chatFlowKey
+    if (key === undefined || !keySet.has(key)) continue
+    rows.push({ key, top: row.getBoundingClientRect().top - scrollportRect.top + scrollport.scrollTop })
   }
-  return bestKey ?? firstKey
+  return rows
 }
 
 function findTurnRow(scrollport: HTMLElement, key: string): HTMLElement | null {
@@ -136,6 +137,47 @@ function findTurnRow(scrollport: HTMLElement, key: string): HTMLElement | null {
   }
   return null
 }
+
+/** Scroll the rail list by the delta that brings the active item into view. */
+export function keepItemVisible(list: HTMLElement, activeItem: HTMLElement): void {
+  const listRect = list.getBoundingClientRect()
+  const itemRect = activeItem.getBoundingClientRect()
+  if (itemRect.top < listRect.top) list.scrollTop += itemRect.top - listRect.top
+  else if (itemRect.bottom > listRect.bottom) list.scrollTop += itemRect.bottom - listRect.bottom
+}
+
+/** The conversation scrollport mounts with ConversationRoot, after the header entry. */
+function findConversationScrollport(): HTMLElement | null {
+  return document.querySelector<HTMLElement>('[data-conversation-scroll]')
+}
+
+interface TurnRowProps {
+  readonly entry: TurnEntry
+  readonly active: boolean
+  readonly onJump: (key: string) => void
+}
+
+/** One rail row; memoized so a scroll crossing re-renders only the changed rows. */
+const TurnRow = memo(function TurnRow({ entry, active, onJump }: TurnRowProps) {
+  return (
+    <button
+      type="button"
+      className={`${css.item}${active ? ` ${css.itemActive}` : ''}`}
+      data-turn-key={entry.key}
+      aria-current={active ? 'true' : undefined}
+      title={entry.preview}
+      onClick={() => { onJump(entry.key) }}
+    >
+      <span className={css.title}>{entry.preview}</span>
+      <span className={css.markerWrap} aria-hidden>
+        <span className={css.marker} />
+      </span>
+    </button>
+  )
+}, (previous, next) =>
+  previous.entry.preview === next.entry.preview
+  && previous.active === next.active
+  && previous.onJump === next.onJump)
 
 /**
  * Renders the official-style right-side turn navigation rail.
@@ -152,8 +194,8 @@ export function TurnRail({ sessionId, useSession, useRailBackground, loadOlder, 
   const [currentKey, setCurrentKey] = useState<string | null>(null)
   const [overflowing, setOverflowing] = useState(false)
   const navRef = useRef<HTMLElement | null>(null)
-  const wrapperRef = useRef<HTMLDivElement | null>(null)
   const listRef = useRef<HTMLDivElement | null>(null)
+  const rowsRef = useRef<readonly TurnRowMeasure[]>(EMPTY_ROWS)
 
   const keySet = useMemo(() => new Set(entries.map(entry => entry.key)), [entries])
 
@@ -186,45 +228,44 @@ export function TurnRail({ sessionId, useSession, useRailBackground, loadOlder, 
       }
     }
     if (activeItem === null) return
-    const listRect = list.getBoundingClientRect()
-    const itemRect = activeItem.getBoundingClientRect()
-    if (itemRect.top < listRect.top) list.scrollTop += itemRect.top - listRect.top
-    else if (itemRect.bottom > listRect.bottom) list.scrollTop += itemRect.bottom - listRect.bottom
+    keepItemVisible(list, activeItem)
   }, [currentKey])
 
-  // Scrollspy: recompute the active turn from the chat viewport on scroll and
-  // on flow size changes (streaming, image loading, older-page prepend).
+  // Scrollspy: resolve the active turn on scroll and on flow changes. Row
+  // positions are measured into a content-coordinate cache only when the flow
+  // structurally changes (turn set or size), so the scroll path itself stays
+  // free of DOM queries and layout reads.
   useEffect(() => {
     // Resolve at effect time: the session header (where this entry mounts)
     // renders before ConversationRoot's scroll body, so a render-time query
     // would miss the scrollport on the first commit.
-    const scrollport = typeof document === 'undefined'
-      ? null
-      : document.querySelector<HTMLElement>('[data-conversation-scroll]')
+    const scrollport = findConversationScrollport()
     if (scrollport === null) return
     let frame: number | null = null
-    const schedule = (): void => {
-      if (frame !== null) return
-      if (typeof requestAnimationFrame !== 'function') {
-        setCurrentKey(computeCurrentKey(scrollport, keySet))
-        return
-      }
-      frame = requestAnimationFrame(() => {
-        frame = null
-        setCurrentKey(computeCurrentKey(scrollport, keySet))
-      })
+    const run = (remap: boolean): void => {
+      frame = null
+      if (remap) rowsRef.current = measureTurnRows(scrollport, keySet)
+      setCurrentKey(computeCurrentKey(scrollport, rowsRef.current))
     }
-    schedule()
-    scrollport.addEventListener('scroll', schedule, { passive: true })
+    const schedule = (remap: boolean): void => {
+      if (frame !== null) return
+      frame = requestAnimationFrame(() => run(remap))
+    }
+    const onScroll = (): void => { schedule(false) }
+    rowsRef.current = measureTurnRows(scrollport, keySet)
+    schedule(false)
+    scrollport.addEventListener('scroll', onScroll, { passive: true })
     let resizeObserver: ResizeObserver | null = null
     const flow = scrollport.querySelector<HTMLElement>('[data-chat-flow]')
     if (flow !== null && typeof ResizeObserver !== 'undefined') {
-      resizeObserver = new ResizeObserver(schedule)
+      resizeObserver = new ResizeObserver(() => schedule(true))
       resizeObserver.observe(flow)
+      // The reading-line offset follows the conversation viewport height.
+      resizeObserver.observe(scrollport)
     }
     return () => {
-      scrollport.removeEventListener('scroll', schedule)
-      if (frame !== null && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(frame)
+      scrollport.removeEventListener('scroll', onScroll)
+      if (frame !== null) cancelAnimationFrame(frame)
       resizeObserver?.disconnect()
     }
   }, [keySet, sessionId])
@@ -239,12 +280,9 @@ export function TurnRail({ sessionId, useSession, useRailBackground, loadOlder, 
     const list = listRef.current
     if (nav === null || list === null) return
     const update = (): void => {
-      const scrollport = typeof document === 'undefined'
-        ? null
-        : document.querySelector<HTMLElement>('[data-conversation-scroll]')
+      const scrollport = findConversationScrollport()
       const chatHeight = scrollport?.clientHeight
-      const viewportFallback = typeof window === 'undefined' ? 600 : window.innerHeight
-      const maxHeight = Math.round((chatHeight && chatHeight > 0 ? chatHeight : viewportFallback) * 0.8)
+      const maxHeight = Math.round((chatHeight !== undefined && chatHeight > 0 ? chatHeight : window.innerHeight) * 0.8)
       const contentHeight = list.scrollHeight
       const height = Math.min(maxHeight, Math.max(300, contentHeight))
       nav.style.height = `${height}px`
@@ -254,18 +292,14 @@ export function TurnRail({ sessionId, useSession, useRailBackground, loadOlder, 
     if (typeof ResizeObserver === 'undefined') return
     const observer = new ResizeObserver(update)
     observer.observe(list)
-    const scrollport = typeof document === 'undefined'
-      ? null
-      : document.querySelector<HTMLElement>('[data-conversation-scroll]')
+    const scrollport = findConversationScrollport()
     if (scrollport !== null) observer.observe(scrollport)
     return () => { observer.disconnect() }
-  }, [entries, currentKey])
+  }, [entries])
 
   const jumpTo = useCallback((key: string): void => {
     setCurrentKey(key)
-    const scrollport = typeof document === 'undefined'
-      ? null
-      : document.querySelector<HTMLElement>('[data-conversation-scroll]')
+    const scrollport = findConversationScrollport()
     if (scrollport === null) return
     const row = findTurnRow(scrollport, key)
     if (row !== null && typeof row.scrollIntoView === 'function') {
@@ -289,29 +323,17 @@ export function TurnRail({ sessionId, useSession, useRailBackground, loadOlder, 
     >
       {backgroundEnabled && <span className={css.background} aria-hidden />}
       <div
-        ref={wrapperRef}
         className={`${css.wrapper}${overflowing ? ` ${css.overflowing}` : ''}`}
       >
         <div ref={listRef} className={css.list}>
-          {entries.map((entry) => {
-            const active = entry.key === currentKey
-            return (
-              <button
-                key={entry.key}
-                type="button"
-                className={`${css.item}${active ? ` ${css.itemActive}` : ''}`}
-                data-turn-key={entry.key}
-                aria-current={active ? 'true' : undefined}
-                title={entry.preview}
-                onClick={() => { jumpTo(entry.key) }}
-              >
-                <span className={css.title}>{entry.preview}</span>
-                <span className={css.markerWrap} aria-hidden>
-                  <span className={css.marker} />
-                </span>
-              </button>
-            )
-          })}
+          {entries.map(entry => (
+            <TurnRow
+              key={entry.key}
+              entry={entry}
+              active={entry.key === currentKey}
+              onJump={jumpTo}
+            />
+          ))}
         </div>
       </div>
     </nav>

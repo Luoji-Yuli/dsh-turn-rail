@@ -6,8 +6,8 @@ import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import { NS } from './locales.ts'
 import css from './BackgroundToggleRow.module.css'
 
-/** Registration-side preference face. */
-export interface BackgroundToggleRowInjected {
+/** Registration-side preference face (module-internal; not part of the client entry API). */
+interface BackgroundToggleRowInjected {
   hooks: {
     /** Persisted collapsed-background preference bound as useBackground. */
     background: SnapshotStore<boolean>
